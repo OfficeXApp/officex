@@ -21,22 +21,24 @@ OfficeX is a membership-based app store. Users buy credits ($0.022 each). Apps c
 
 ## Getting Started
 
-To use the OfficeX API, you need two credentials:
+To use the OfficeX API, you only need **one credential** — your API key:
 
 | Credential | Env Var | Header | Where to Get |
 |---|---|---|---|
-| **User ID** | `OFFICEX_USER_ID` | `x-officex-user-id` | Returned on registration/login |
 | **API Key** | `OFFICEX_API_KEY` | `x-officex-master-key` | Returned on registration/login |
+| **User ID** (optional) | `OFFICEX_USER_ID` | `x-officex-user-id` | Returned on registration/login |
 
-These are your core credentials for all authenticated operations — managing your profile, installing apps, creating apps, checking balances, and more.
+Your API key alone is sufficient for all authenticated operations. You can optionally include the User ID header for faster auth (skips a lookup), but it's not required.
 
 ```bash
-# Set these in your environment or .env file
-export OFFICEX_USER_ID="your-user-id"
+# Simplest: just the API key
 export OFFICEX_API_KEY="your-api-key"
+
+# Optional: include user ID for faster auth
+export OFFICEX_USER_ID="your-user-id"
 ```
 
-**AI agents** can use these credentials to interact with the OfficeX API on your behalf — installing apps, managing billing, checking balances, and orchestrating workflows across multiple apps.
+**AI agents** can use just the `OFFICEX_API_KEY` to interact with the OfficeX API — installing apps, managing billing, checking balances, and orchestrating workflows across multiple apps.
 
 ## API Base
 
@@ -54,7 +56,8 @@ https://chat.cloud.officex.app/
 | Mode | Headers | Scope |
 |---|---|---|
 | None | — | Public catalog, vouchers, auth endpoints |
-| API Key | `x-officex-user-id` + `x-officex-master-key` | Profile, installs, wallets, vendor apps |
+| API Key (simple) | `x-officex-master-key` | Profile, installs, wallets, vendor apps |
+| API Key (with user ID) | `x-officex-user-id` + `x-officex-master-key` | Same as above (faster, skips lookup) |
 | Install Secret | `x-officex-install-id` + `x-officex-install-secret` | Billing: reserve, settle, cancel, inbox |
 | Install Secret (alt) | `x-officex-user-id` + `x-officex-app-id` + `x-officex-install-secret` | Same as above (alternative lookup) |
 
@@ -1052,20 +1055,20 @@ curl -X POST $BASE/payout \
   -d '{"wallet_id":"$APP_WALLET","amount":500,"destination":{"type":"stripe","account_id":"acct_xxx"}}'
 ```
 
-**AI Agent — Browse + Install + Use (via agent with user credentials):**
+**AI Agent — Browse + Install + Use (single API key):**
 ```bash
-# An AI agent can orchestrate the full flow using OFFICEX_USER_ID + OFFICEX_API_KEY:
+# An AI agent only needs OFFICEX_API_KEY:
 # 1. Browse the catalog
 curl -X GET $BASE/apps
 # 2. Install an app
 curl -X POST $BASE/install/$APP_SLUG \
-  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
+  -H "x-officex-master-key: $OFFICEX_API_KEY"
 # 3. Check balance
 curl -X GET $BASE/balance \
-  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
+  -H "x-officex-master-key: $OFFICEX_API_KEY"
 # 4. View installed apps and their agent_context
 curl -X GET $BASE/users/me/installs \
-  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
+  -H "x-officex-master-key: $OFFICEX_API_KEY"
 ```
 
 ## FAQ
@@ -1082,4 +1085,4 @@ curl -X GET $BASE/users/me/installs \
 
 **How does the AI chat agent interact with my app?** The agent receives your `documentation` and `context_prompt`. If `agent_context` has credentials, the agent calls your API via `http_request` tool. Make sure docs include clear API instructions.
 
-**Can an AI agent use the OfficeX API directly?** Yes. Any agent with the user's `OFFICEX_USER_ID` and `OFFICEX_API_KEY` can browse apps, install them, check balances, manage installations, and orchestrate workflows. The API is designed to be agent-friendly.
+**Can an AI agent use the OfficeX API directly?** Yes. Any agent with the user's `OFFICEX_API_KEY` can browse apps, install them, check balances, manage installations, and orchestrate workflows. Only one credential needed — the API is designed to be agent-friendly.
