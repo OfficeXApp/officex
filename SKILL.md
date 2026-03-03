@@ -250,7 +250,7 @@ GET    /refs/{ref_slug}                         → { ref }
 
 Returns minimal ref info. Response depends on ref type:
 
-- **Managed ref** (created via API): `{ ref_slug, user_id, title, type: "managed", has_about_project, presigned_url? }`
+- **Managed ref** (created via API): `{ ref_slug, user_id, title, full_url?, type: "managed", has_about_project, presigned_url? }`
 - **Default profile ref** (auto-assigned): `{ ref_slug, user_id, type: "default", has_about_project: false }`
 
 `presigned_url` (15-min expiry) is included only when the ref has an `about_project`. Use it to fetch the full ref payload (title, about_project, metadata) from S3.
@@ -267,30 +267,31 @@ GET    /users/me/refs/{ref_slug}/referrals ?cursor= → { referrals[], pending[]
 **Create ref** — `POST /users/me/refs`:
 ```typescript
 // Request
-{ title?: string, about_project?: string, metadata?: string }
+{ title?: string, about_project?: string, metadata?: string, full_url?: string }
 // about_project max 4000 chars. Content is AI-sanitized before acceptance.
+// full_url: optional custom URL for this ref. Defaults to "https://officex.app?ref={slug}" if omitted.
 // Response (201)
-{ success: true, ref: { ref_slug: string, title?: string, created_at: string } }
+{ success: true, ref: { ref_slug: string, title?: string, full_url: string, created_at: string } }
 ```
 
 **List refs** — `GET /users/me/refs`:
 ```typescript
 // Response (200) — paginated, 50 per page, newest first
-{ success: true, refs: Array<{ ref_slug, title?, created_at }>, pagination?: { cursor } }
+{ success: true, refs: Array<{ ref_slug, title?, full_url?, created_at }>, pagination?: { cursor } }
 ```
 
 **Get ref detail** — `GET /users/me/refs/{ref_slug}`:
 ```typescript
 // Response (200) — includes presigned S3 URL to fetch full payload
-{ success: true, ref: { ref_slug, user_id, title?, created_at, presigned_url } }
+{ success: true, ref: { ref_slug, user_id, title?, full_url?, created_at, presigned_url } }
 ```
 
 **Update ref** — `PATCH /users/me/refs/{ref_slug}`:
 ```typescript
 // Request — all fields optional, merges with existing payload
-{ title?: string, about_project?: string, metadata?: string }
+{ title?: string, about_project?: string, metadata?: string, full_url?: string }
 // Response (200)
-{ success: true, ref: { ref_slug, title? } }
+{ success: true, ref: { ref_slug, title?, full_url? } }
 ```
 
 **List referrals** — `GET /users/me/refs/{ref_slug}/referrals`:
