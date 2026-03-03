@@ -15,7 +15,7 @@ description: |
 
 # OfficeX Platform
 
-OfficeX is a membership-based app store. Users buy credits ($0.022 each). Apps charge credits via reserve/settle. Vendors earn credits and payout to fiat (USDC on Solana or bank transfer, $0.01/credit).
+OfficeX is a membership-based app store. Users buy credits ($0.022 each). Apps charge credits via reserve/settle. Vendors earn credits and can request payouts.
 
 **Get your credentials at:** https://officex.app/store/en/developer/
 
