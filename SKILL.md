@@ -15,26 +15,48 @@ description: |
 
 # OfficeX Platform
 
-OfficeX is a membership-based app store. Users buy credits ($0.03 each: $0.02 profit + $0.01 ecosystem liability). Apps charge credits via reserve/settle. Vendors earn credits and payout to fiat (USDC on Solana or bank transfer, $0.01/credit).
+OfficeX is a membership-based app store. Users buy credits ($0.022 each). Apps charge credits via reserve/settle. Vendors earn credits and payout to fiat (USDC on Solana or bank transfer, $0.01/credit).
 
 **Get your credentials at:** https://officex.app/store/en/developer/
 
-## Environments
+## Getting Started
 
-| Env | API Base | Chat Stream |
-|---|---|---|
-| **Staging** (default) | `https://staging-backend.cloud.officex.app/v1` | `https://chat-staging.cloud.officex.app/` |
-| **Production** | `https://cloud.officex.app/v1` | `https://chat.cloud.officex.app/` |
+To use the OfficeX API, you need two credentials:
+
+| Credential | Env Var | Header | Where to Get |
+|---|---|---|---|
+| **User ID** | `OFFICEX_USER_ID` | `x-officex-user-id` | Returned on registration/login |
+| **API Key** | `OFFICEX_API_KEY` | `x-officex-master-key` | Returned on registration/login |
+
+These are your core credentials for all authenticated operations — managing your profile, installing apps, creating apps, checking balances, and more.
+
+```bash
+# Set these in your environment or .env file
+export OFFICEX_USER_ID="your-user-id"
+export OFFICEX_API_KEY="your-api-key"
+```
+
+**AI agents** can use these credentials to interact with the OfficeX API on your behalf — installing apps, managing billing, checking balances, and orchestrating workflows across multiple apps.
+
+## API Base
+
+```
+https://cloud.officex.app/v1
+```
+
+Chat streaming endpoint (Function URL, not API Gateway):
+```
+https://chat.cloud.officex.app/
+```
 
 ## Authentication
 
 | Mode | Headers | Scope |
 |---|---|---|
 | None | — | Public catalog, vouchers, auth endpoints |
-| Master Key | `x-officex-user-id` + `x-officex-master-key` | Profile, installs, wallets, vendor apps |
+| API Key | `x-officex-user-id` + `x-officex-master-key` | Profile, installs, wallets, vendor apps |
 | Install Secret | `x-officex-install-id` + `x-officex-install-secret` | Billing: reserve, settle, cancel, inbox |
 | Install Secret (alt) | `x-officex-user-id` + `x-officex-app-id` + `x-officex-install-secret` | Same as above (alternative lookup) |
-| Superadmin | `x-officex-admin-secret` | Full system (`/admin/*`) |
 
 Install Secret is **billing only** — your app manages its own user authentication separately. The install secret handles the money, your app handles everything else.
 
@@ -49,16 +71,16 @@ Vendor payouts → Credits converted to fiat, Treasury liability decreases
 
 ### Decimal Credits
 
-Credits support **decimals**. Rounding up to 1 credit ($0.03) is expensive for small operations:
+Credits support **decimals**. Rounding up to 1 credit ($0.022) is expensive for small operations:
 
 | Operation | Credits | User Pays |
 |---|---|---|
-| Micro task | 0.1 | $0.003 |
-| Small task | 0.25 | $0.0075 |
-| Medium task | 0.5 | $0.015 |
-| Standard | 1.0 | $0.03 |
+| Micro task | 0.1 | $0.0022 |
+| Small task | 0.25 | $0.0055 |
+| Medium task | 0.5 | $0.011 |
+| Standard | 1.0 | $0.022 |
 
-**Best practice:** Price based on actual cost. If an API call costs $0.001, charge ~0.07 credits (2x markup).
+**Best practice:** Price based on actual cost. If an API call costs $0.001, charge ~0.05 credits (with markup).
 
 ### Dual Roles
 
@@ -83,9 +105,7 @@ POST /auth/confirm-rotate-key    { email, code }               → { success, ap
 POST /register-user              { email }                     → { user_id, wallet_id, api_key }  (legacy)
 ```
 
-**Testing mode:** OTP hardcoded to `0000`, email sending disabled.
-
-### User Profile [Master Key]
+### User Profile [API Key]
 
 ```
 GET    /users/me                                → { user: { user_id, email, wallet_id, status } }
@@ -94,7 +114,7 @@ POST   /users/me/rotate-key     { new_master_key } → { success }
 GET    /users/me/vouchers                       → { vouchers[] }
 ```
 
-### Installations [Master Key]
+### Installations [API Key]
 
 ```
 GET    /users/me/installs                       → { installs[] }
@@ -116,7 +136,7 @@ PATCH  /installs/{install_id}/context  { key: val | null } → { agent_context }
 POST   /installs/{install_id}/inbox    { id, title, text, url?, icon? } → { message_id }
 ```
 
-### Vendor Apps [Master Key]
+### Vendor Apps [API Key]
 
 ```
 GET    /users/me/apps                           → { apps[] }
@@ -138,7 +158,7 @@ GET    /apps                                    → { apps[], pagination? }
 GET    /apps/{app_id}                           → { app }
 ```
 
-### Credits & Balance [Master Key]
+### Credits & Balance [API Key]
 
 ```
 POST   /purchase-credits         { amount, payment_method: { type, token }, idempotency_key? }
@@ -162,7 +182,7 @@ POST   /reservations/{id}/settle { amount, final? } → { settled_amount, status
 
 Reserve errors: `INSTALL_EXPIRED`, `RATE_LIMITED`, `INSUFFICIENT_FUNDS`, `DUPLICATE_JOB`, `LIFETIME_LIMIT_REACHED`
 
-### Wallets [Master Key]
+### Wallets [API Key]
 
 ```
 GET    /wallets/{id}                            → { wallet_id, available, reserved, total, owner_type }
@@ -174,7 +194,7 @@ GET    /wallets/{id}/payouts                    → { payouts[] }
 GET    /wallets/{id}/payouts/{payout_id}        → { payout }
 ```
 
-### Payouts [Master Key]
+### Payouts [API Key]
 
 ```
 POST   /payout                   { wallet_id, amount, destination: { type, account_id }, idempotency_key? }
@@ -187,10 +207,10 @@ Payout state machine: `pending → burned → completed | failed` (failed = cred
 
 ```
 GET    /vouchers/{code}                         → { voucher }           (No Auth)
-POST   /vouchers/{code}/redeem   { wallet_id }  → { credits_added }    [Master Key]
+POST   /vouchers/{code}/redeem   { wallet_id }  → { credits_added }    [API Key]
 ```
 
-### Chat [Master Key]
+### Chat [API Key]
 
 ```
 GET    /users/me/chats                          → { threads[] }
@@ -202,13 +222,13 @@ DELETE /users/me/chats/{id}                     → { success }
 
 Streaming (Function URL, NOT API Gateway):
 ```
-POST   <CHAT_STREAM_URL>
+POST   https://chat.cloud.officex.app/
 Headers: x-officex-user-id, x-officex-master-key
 Body: { messages[], thread_id?, system_prompt?, include_apps? }
 Response: text/event-stream (SSE)
 ```
 
-### Inbox, Prompts, Uploads [Master Key]
+### Inbox, Prompts, Uploads [API Key]
 
 ```
 GET    /users/me/inbox                          → { messages[] }
@@ -232,7 +252,7 @@ Returns minimal ref info. Response depends on ref type:
 
 `presigned_url` (15-min expiry) is included only when the ref has an `about_project`. Use it to fetch the full ref payload (title, about_project, metadata) from S3.
 
-**Authenticated [Master Key]:**
+**Authenticated [API Key]:**
 ```
 POST   /users/me/refs                           → { ref }             Create new ref
 GET    /users/me/refs             ?cursor=       → { refs[], pagination? }  List your refs
@@ -289,17 +309,6 @@ POST /auth/verify-otp  { email, code, ref?: string }
 
 **Errors:** `REF_NOT_FOUND` (404), `CONTENT_REJECTED` (400, failed safety check), `FORBIDDEN` (403, not your ref)
 
-### Admin [Superadmin]
-
-All under `/admin/*` with `x-officex-admin-secret`:
-
-**Users:** `GET /admin/users`, `GET/PATCH /admin/users/{id}`, `GET /admin/users/{id}/wallets`
-**Apps:** `GET /admin/apps`, `GET/PATCH/DELETE /admin/apps/{id}`
-**Wallets:** `GET /admin/wallets`, `GET /admin/wallets/{id}`, `POST /admin/wallets/{id}/adjust { amount }`
-**Treasury:** `GET /admin/treasury`, `POST /admin/reconcile`, `GET /admin/audit`
-**Payouts:** `GET /admin/payouts`, `GET /admin/payouts/{id}`, `POST /admin/payouts/{id}/approve`, `POST /admin/payouts/{id}/reject`
-**Vouchers:** `POST /admin/vouchers`, `GET /admin/vouchers`, `GET/PATCH/DELETE /admin/vouchers/{code}`
-
 ## Error Format
 
 ```json
@@ -334,7 +343,7 @@ All under `/admin/*` with `x-officex-admin-secret`:
 
 ### 1. Create Your App
 
-**Endpoint:** `POST /register-app` [Master Key]
+**Endpoint:** `POST /register-app` [API Key]
 
 ```typescript
 {
@@ -388,7 +397,7 @@ Each app gets a **discrete wallet** (`destination_wallet_id`). Earnings go there
 
 ### 2. Update Your App
 
-**Endpoint:** `PATCH /users/me/apps/{app_id}` [Master Key] — All fields optional, set to `null` to clear:
+**Endpoint:** `PATCH /users/me/apps/{app_id}` [API Key] — All fields optional, set to `null` to clear:
 
 ```typescript
 {
@@ -402,7 +411,7 @@ Each app gets a **discrete wallet** (`destination_wallet_id`). Earnings go there
 
 ### 3. List App's Installs (Vendor View)
 
-**Endpoint:** `GET /users/me/apps/{app_id}/installs` [Master Key]
+**Endpoint:** `GET /users/me/apps/{app_id}/installs` [API Key]
 
 ```typescript
 // Response (200)
@@ -430,6 +439,8 @@ When a user installs your app, OfficeX:
 5. Fires an **INSTALL webhook** to your `webhook_url` (if configured)
 
 The install endpoint accepts both `app_id` (UUID) and `slug` (string) in the path parameter.
+
+**AI Agent tip:** An agent can install an app on the user's behalf via `POST /install/{app_id_or_slug}` using the user's `OFFICEX_USER_ID` and `OFFICEX_API_KEY`, then use the returned `install_id` and `install_secret` for billing.
 
 ---
 
@@ -590,9 +601,11 @@ Rate limits are **per (user, app) pair** — each installation has independent l
 
 ## Agent Context (AI Chat Integration)
 
-When users chat with OfficeX AI, the agent receives your app's `documentation` and `context_prompt`. Store per-install credentials via:
+OfficeX has a built-in AI chat agent that can orchestrate actions across installed apps. When users chat with OfficeX AI, the agent receives your app's `documentation` and `context_prompt`. This enables the agent to call your app's API endpoints, trigger workflows, and chain operations across multiple apps.
 
-`PATCH /users/me/installs/{install_id}/context` [Master Key] or `PATCH /installs/{install_id}/context` [Install Secret]
+Store per-install credentials via:
+
+`PATCH /users/me/installs/{install_id}/context` [API Key] or `PATCH /installs/{install_id}/context` [Install Secret]
 
 ```typescript
 // Request: Record<string, string | null> (null deletes key)
@@ -604,6 +617,8 @@ When users chat with OfficeX AI, the agent receives your app's `documentation` a
 Validation: Max 50 keys, 200 chars/key, 1000 chars/value.
 
 **Best practice:** Return credentials in INSTALL webhook response → auto-applied as `agent_context`. Manual PATCH only needed for credentials that change after installation.
+
+**For app developers:** Write your `documentation` and `context_prompt` as if you're instructing an AI agent. Be explicit about which endpoints to call, what parameters to pass, and what the expected responses look like. The better your docs, the more effectively the AI agent can use your app.
 
 ---
 
@@ -910,7 +925,6 @@ async function reserveWithRetry(installId, amount, jobId) {
 - Set aggressive timeouts (3-5 seconds) on all OfficeX API calls
 - If reserve fails, consider letting user proceed and retrying billing later
 - Webhooks are fire-and-forget — always have a fallback path (create users on-the-fly from iframe params)
-- Consider a simple toggle to disable OfficeX billing during development/testing
 - Log OfficeX errors instead of throwing unhandled exceptions
 
 ---
@@ -987,38 +1001,76 @@ app.post("/api/enrich-lead", async (req, res) => {
 
 **Consumer — Register + Fund + Install:**
 ```bash
-curl -X POST $BASE/auth/register -d '{"email":"user@example.com"}'
-curl -X POST $BASE/auth/verify-otp -d '{"email":"user@example.com","code":"0000"}'
+BASE="https://cloud.officex.app/v1"
+
+# 1. Register and verify (check your email for OTP code)
+curl -X POST $BASE/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com"}'
+curl -X POST $BASE/auth/verify-otp -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","code":"<otp-from-email>"}'
 # → { api_key, user_id, wallet_id }
-curl -X POST $BASE/purchase-credits -H "x-officex-user-id: $UID" -H "x-officex-master-key: $KEY" \
+# Save OFFICEX_USER_ID and OFFICEX_API_KEY from the response
+
+# 2. Fund your wallet
+curl -X POST $BASE/purchase-credits \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{"amount":1000,"payment_method":{"type":"stripe","token":"tok_xxx"}}'
-curl -X POST $BASE/install/$APP_ID -H "x-officex-user-id: $UID" -H "x-officex-master-key: $KEY"
+
+# 3. Install an app
+curl -X POST $BASE/install/$APP_ID \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
 # → { install_id, install_secret }
 ```
 
 **Developer — Register App + Billing:**
 ```bash
-curl -X POST $BASE/register-app -H "x-officex-user-id: $UID" -H "x-officex-master-key: $KEY" \
+# 1. Register your app
+curl -X POST $BASE/register-app \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{"name":"My App","price_type":"PAY_PER_USE","webhook_url":"https://myapp.com/webhooks/officex"}'
 # → { app_id, destination_wallet_id }
 
-# From app server (using install secret from webhook):
-curl -X POST $BASE/reserve -H "x-officex-install-id: $IID" -H "x-officex-install-secret: $SEC" \
+# 2. From your app server (using install secret from webhook):
+curl -X POST $BASE/reserve \
+  -H "x-officex-install-id: $INSTALL_ID" -H "x-officex-install-secret: $INSTALL_SECRET" \
+  -H "Content-Type: application/json" \
   -d '{"amount":10,"job_id":"job-1"}'
-curl -X POST $BASE/settle -H "x-officex-install-id: $IID" -H "x-officex-install-secret: $SEC" \
+curl -X POST $BASE/settle \
+  -H "x-officex-install-id: $INSTALL_ID" -H "x-officex-install-secret: $INSTALL_SECRET" \
+  -H "Content-Type: application/json" \
   -d '{"reservation_id":"RESV#job-1","amount":8,"final":true}'
 # 2 credits refunded to user, 8 credited to app wallet
 ```
 
 **Vendor Payout:**
 ```bash
-curl -X POST $BASE/payout -H "x-officex-user-id: $UID" -H "x-officex-master-key: $KEY" \
+curl -X POST $BASE/payout \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{"wallet_id":"$APP_WALLET","amount":500,"destination":{"type":"stripe","account_id":"acct_xxx"}}'
+```
+
+**AI Agent — Browse + Install + Use (via agent with user credentials):**
+```bash
+# An AI agent can orchestrate the full flow using OFFICEX_USER_ID + OFFICEX_API_KEY:
+# 1. Browse the catalog
+curl -X GET $BASE/apps
+# 2. Install an app
+curl -X POST $BASE/install/$APP_SLUG \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
+# 3. Check balance
+curl -X GET $BASE/balance \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
+# 4. View installed apps and their agent_context
+curl -X GET $BASE/users/me/installs \
+  -H "x-officex-user-id: $OFFICEX_USER_ID" -H "x-officex-master-key: $OFFICEX_API_KEY"
 ```
 
 ## FAQ
 
-**How do I test without real money?** Use vouchers via admin panel or test voucher codes.
+**How do I test without real money?** Redeem a voucher code to add free credits to your wallet: `POST /vouchers/{code}/redeem`.
 
 **Can my app have multiple pricing tiers?** Yes. Your app logic decides how many credits to reserve per action.
 
@@ -1029,3 +1081,5 @@ curl -X POST $BASE/payout -H "x-officex-user-id: $UID" -H "x-officex-master-key:
 **How do I handle long-running jobs that fail?** Reserve upfront, sip as work completes, cancel on failure (refunds all unsettled credits), send inbox message explaining what happened.
 
 **How does the AI chat agent interact with my app?** The agent receives your `documentation` and `context_prompt`. If `agent_context` has credentials, the agent calls your API via `http_request` tool. Make sure docs include clear API instructions.
+
+**Can an AI agent use the OfficeX API directly?** Yes. Any agent with the user's `OFFICEX_USER_ID` and `OFFICEX_API_KEY` can browse apps, install them, check balances, manage installations, and orchestrate workflows. The API is designed to be agent-friendly.
